@@ -1,0 +1,208 @@
+<html>
+<head>
+<script>
+function createArray(k){
+  var array = new Array(Math.pow(2,k));
+  var i;
+  for(i = 0; i < Math.pow(2,k); i++){
+    array[i]=new Array(Math.pow(2,k));
+  }
+  return array;
+}
+function Point(x,y){
+	this.x=x;
+	this.y=y;
+}
+
+Point.prototype.translate = function(dx,dy){
+  return new Point(this.x+dx,this.y+dy);
+}
+Point.prototype.equals = function(other){
+  return (this.x==other.x)&&(this.y==other.y);
+}
+function Tromino(points){
+  this.points=points;
+}
+Tromino.prototype.addTo = function(array){
+  var tromino=this;
+  this.points.forEach(function(point){
+    array[point.x][point.y]=tromino;
+  });
+}
+
+Tromino.prototype.translate = function(dx,dy){
+  return new Tromino(this.points.map(function(point){return point.translate(dx,dy);}));
+}
+function getTrominosFromArray(array){
+  var list = array.reduce(function(a,b){return a.concat(b);})
+  return list.reduce(function(arr,val){if(arr.indexOf(val)==-1){arr.push(val)}return arr;},[]);
+  
+}
+var tile = function(k,missingPoint){
+  var array = createArray(k);
+  if(k<=1){
+    var points = [new Point(0,0),new Point(0,1),new Point(1,0),new Point(1,1)];
+	points = points.filter(function(point){return !(point.equals(missingPoint))});
+	var tromino = new Tromino(points);
+	tromino.addTo(array);
+	return array;
+  }
+  var arrays = new Array(5);
+  var points = new Array(5);
+  var halfSize=Math.pow(2,k-1);
+  //02 quadrants
+  //13 - 5 in the center
+  //I hope this is right I got confused but it works
+  points[0]=new Point(halfSize-1,halfSize-1);
+  points[1]=new Point(halfSize-1,0);
+  points[2]=new Point(0,halfSize-1);
+  points[3] = new Point(0,0);
+  var centerMissingX=1,centerMissingY=1;
+  if(missingPoint.x<halfSize){
+    centerMissingX=0;
+    if(missingPoint.y<halfSize){
+	  centerMissingY=0;
+	  points[0]=missingPoint;
+	}else{
+	  points[1]=missingPoint.translate(0,-halfSize);
+	}  
+  }else{
+    if(missingPoint.y<halfSize){  
+	  centerMissingY=0;
+	  points[2]=missingPoint.translate(-halfSize,0);
+	}else{
+	  points[3]=missingPoint.translate(-halfSize,-halfSize);
+	}
+  }
+  points[5]=new Point(centerMissingX,centerMissingY);
+  var i;
+  for(i=0; i < 4; i++){
+    arrays[i]=tile(k-1,points[i]);
+  }
+  arrays[5]=tile(1,points[5]);
+  arrays = arrays.map(getTrominosFromArray);
+  arrays[1]=arrays[1].map(function(trom){return trom.translate(0,halfSize)});
+  arrays[2]=arrays[2].map(function(trom){return trom.translate(halfSize,0)});
+  arrays[3]=arrays[3].map(function(trom){return trom.translate(halfSize,halfSize)});
+  arrays[5]=arrays[5].map(function(trom){return trom.translate(halfSize-1,halfSize-1);});
+  var trominos = arrays.reduce(function(a,b){return a.concat(b)});
+  trominos.forEach(function(trom){
+    trom.addTo(array);
+  });
+  return array;
+}
+var cWidth=512,cHeight=512;
+var renderArray = function(array,missingPoint){
+  var trominos = getTrominosFromArray(array);
+  var xSize = array.length;
+  var ySize = array[0].length;
+  var xScale = cWidth/xSize;
+  var yScale = cWidth/ySize;
+  var canvas = document.getElementById("canvas");
+  var context = canvas.getContext("2d");
+  context.strokeStyle="#000000"
+  context.clearRect(0,0,cWidth,cHeight);
+  trominos.forEach(function(tromino){
+    tromino.points.forEach(function(point1){
+	  tromino.points.forEach(function(point2){
+	    if(point1.x==point2.x||point1.y==point2.y){
+		  context.beginPath();
+		  context.moveTo(point1.x*xScale,point1.y*yScale);
+		  context.lineTo(point2.x*xScale,point2.y*yScale);
+		  context.stroke();
+		}
+	  });
+	});
+  });
+  if(missingPoint){
+    context.beginPath();
+	context.strokeRect((missingPoint.x-.25)*xScale,(missingPoint.y-.25)*yScale,xScale/2,yScale/2);
+  }
+}
+function doThing(k,x,y){
+  x = Math.round(x);
+  y = Math.round(y);
+  if(x>=Math.pow(2,k)){
+    x=Math.pow(2,k)-1;
+  }
+  if(y>=Math.pow(2,k)){
+    y=Math.pow(2,k)-1;
+  }
+  if(x<0){
+    x=0;
+  }
+  if(y<0){
+    y=0;
+  }
+  renderArray(tile(k,new Point(x,y)),new Point(x,y));
+}
+
+        var can, canX, canY, mouseIsDown = 0;
+		var prevCanX,prevCanY,prevDo;
+        function init() {
+            can = document.getElementById("canvas");
+        
+            can.addEventListener("mousedown", mouseDown, false);
+            can.addEventListener("mousemove", mouseXY, false);
+            can.addEventListener("touchstart", touchDown, false);
+            can.addEventListener("touchmove", touchXY, true);
+            can.addEventListener("touchend", touchUp, false);
+ 
+            document.body.addEventListener("mouseup", mouseUp, false);
+            document.body.addEventListener("touchcancel", touchUp, false);
+			doThing(3,0,0);
+        }
+ 
+        function mouseUp() {
+            mouseIsDown = 0;
+            mouseXY();
+        }
+ 
+        function touchUp() {
+            mouseIsDown = 0;
+            // no touch to track, so just show state
+            showPos();
+        }
+ 
+        function mouseDown() {
+            mouseIsDown = 1;
+            mouseXY();
+        }
+ 
+        function touchDown() {
+            mouseIsDown = 1;
+            touchXY();
+        }
+ 
+        function mouseXY(e) {
+            if (!e)
+                e = event;
+            canX = e.pageX - can.offsetLeft;
+            canY = e.pageY - can.offsetTop;
+            showPos();
+        }
+ 
+        function touchXY(e) {
+            if (!e)
+                e = event;
+            e.preventDefault();
+            canX = e.targetTouches[0].pageX - can.offsetLeft;
+            canY = e.targetTouches[0].pageY - can.offsetTop;
+            showPos();
+        }
+ //whatever
+        function showPos() {
+		    var k=+(document.getElementById("in").value);
+            doThing(k,canX/cWidth*(Math.pow(2,k)),canY/cHeight*Math.pow(2,k));
+			prevDo=mouseIsDown;
+			prevCanX=canX;
+			prevCanY=canY;
+        }
+    window.onload=init;
+</script>
+<body>
+<canvas id="canvas" width="512" height="512"></canvas>
+<br>k=<input type="text" id="in" value="3""></input>
+</canvas>
+</body>
+</html>
