@@ -103,25 +103,66 @@ var renderArray = function(array,missingPoint){
   context.strokeStyle="#000000"
   context.clearRect(0,0,cWidth,cHeight);
   trominos.forEach(function(tromino){
-    tromino.points.forEach(function(point1){
-	  tromino.points.forEach(function(point2){
-	    if(point1.x==point2.x||point1.y==point2.y){
-		  context.beginPath();
-		  context.moveTo(point1.x*xScale,point1.y*yScale);
-		  context.lineTo(point2.x*xScale,point2.y*yScale);
-		  context.stroke();
+    var centerPointIndex=0;
+	var points = tromino.points;
+	for(var i = 0; i < 3; i++){
+	  var isCenter=true;
+	  for(var j=  0; j < 3; j++){
+	    if(j==i)continue;
+		if(!(points[i].x==points[j].x||points[i].y==points[j].y)){
+		  isCenter=false;
 		}
-	  });
-	});
+	  }
+	  if(isCenter){
+        centerPointIndex=i;	  
+	  }
+	}
+	var sumx=0,sumy=0;
+	for(var i = 0; i < 3; i++){
+	  sumx+=points[i].x;
+	  sumy+=points[i].y;
+	}
+	sumx-=3*points[centerPointIndex].x;
+	sumy-=3*points[centerPointIndex].y;
+	var cPoint = points[centerPointIndex];
+	//   - - - -       yconst3                         
+	//  |       |                             
+	//  |       |                            
+	//  |        ----  yconst2                          
+	//  |   x         |                        
+	//  |             |                      
+	//   ------------- yconst1 
+    //  xc1	   xc2   xc3
+	var yconst1=-.5,yconst2=.5,yconst3=1.5;
+	var xconst1=-.5,xconst2=.5,xconst3=1.5;
+	if(sumx<0){
+	  xconst1*=-1;
+	  xconst2*=-1;
+	  xconst3*=-1;
+	}
+	if(sumy<0){
+	  yconst1*=-1;
+	  yconst2*=-1;
+	  yconst3*=-1;
+	}
+    context.beginPath();
+	context.moveTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
+	context.lineTo((cPoint.x+xconst3+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
+	context.lineTo((cPoint.x+xconst3+.5)*xScale,(cPoint.y+yconst2+.5)*yScale);
+	context.lineTo((cPoint.x+xconst2+.5)*xScale,(cPoint.y+yconst2+.5)*yScale);
+	context.lineTo((cPoint.x+xconst2+.5)*xScale,(cPoint.y+yconst3+.5)*yScale);
+	context.lineTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst3+.5)*yScale);
+	context.lineTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
+	context.stroke();
   });
   if(missingPoint){
     context.beginPath();
-	context.strokeRect((missingPoint.x-.25)*xScale,(missingPoint.y-.25)*yScale,xScale/2,yScale/2);
+	context.strokeRect((missingPoint.x+.25)*xScale,(missingPoint.y+.25)*yScale,xScale/2,yScale/2);
   }
 }
 function doThing(k,x,y){
-  x = Math.round(x);
-  y = Math.round(y);
+  x = Math.floor(x);
+  y = Math.floor(y);
   if(x>=Math.pow(2,k)){
     x=Math.pow(2,k)-1;
   }
@@ -137,6 +178,7 @@ function doThing(k,x,y){
   renderArray(tile(k,new Point(x,y)),new Point(x,y));
 }
 
+ //code copied from https://developer.apple.com/library/safari/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
         var can, canX, canY, mouseIsDown = 0;
 		var prevCanX,prevCanY,prevDo;
         function init() {
