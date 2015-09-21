@@ -1,14 +1,7 @@
 <html>
 <head>
 <script>
-function createArray(k){
-  var array = new Array(Math.pow(2,k));
-  var i;
-  for(i = 0; i < Math.pow(2,k); i++){
-    array[i]=new Array(Math.pow(2,k));
-  }
-  return array;
-}
+var k;
 function Point(x,y){
 	this.x=x;
 	this.y=y;
@@ -22,36 +15,30 @@ Point.prototype.equals = function(other){
 }
 function Tromino(points){
   this.points=points;
+  this.lastChanged=0;
 }
-Tromino.prototype.addTo = function(array){
+Tromino.prototype.addTo = function(array2d){
   var tromino=this;
   this.points.forEach(function(point){
-    array[point.x][point.y]=tromino;
+    array2d[point.x][point.y]=tromino;
   });
 }
 
 Tromino.prototype.translate = function(dx,dy){
   return new Tromino(this.points.map(function(point){return point.translate(dx,dy);}));
 }
-function getTrominosFromArray(array){
-  var list = array.reduce(function(a,b){return a.concat(b);})
-  return list.reduce(function(arr,val){if(arr.indexOf(val)==-1){arr.push(val)}return arr;},[]);
-  
-}
 var tile = function(k,missingPoint){
-  var array = createArray(k);
   if(k<=1){
     var points = [new Point(0,0),new Point(0,1),new Point(1,0),new Point(1,1)];
 	points = points.filter(function(point){return !(point.equals(missingPoint))});
 	var tromino = new Tromino(points);
-	tromino.addTo(array);
-	return array;
+	return [tromino];
   }
   var arrays = new Array(5);
   var points = new Array(5);
   var halfSize=Math.pow(2,k-1);
   //02 quadrants
-  //13 - 5 in the center
+  //13 - 4 in the center
   //I hope this is right I got confused but it works
   points[0]=new Point(halfSize-1,halfSize-1);
   points[1]=new Point(halfSize-1,0);
@@ -74,34 +61,102 @@ var tile = function(k,missingPoint){
 	  points[3]=missingPoint.translate(-halfSize,-halfSize);
 	}
   }
-  points[5]=new Point(centerMissingX,centerMissingY);
+  points[4]=new Point(centerMissingX,centerMissingY);
   var i;
   for(i=0; i < 4; i++){
     arrays[i]=tile(k-1,points[i]);
   }
-  arrays[5]=tile(1,points[5]);
-  arrays = arrays.map(getTrominosFromArray);
+  arrays[4]=tile(1,points[4]);
   arrays[1]=arrays[1].map(function(trom){return trom.translate(0,halfSize)});
   arrays[2]=arrays[2].map(function(trom){return trom.translate(halfSize,0)});
   arrays[3]=arrays[3].map(function(trom){return trom.translate(halfSize,halfSize)});
-  arrays[5]=arrays[5].map(function(trom){return trom.translate(halfSize-1,halfSize-1);});
+  arrays[4]=arrays[4].map(function(trom){return trom.translate(halfSize-1,halfSize-1);});
   var trominos = arrays.reduce(function(a,b){return a.concat(b)});
-  trominos.forEach(function(trom){
-    trom.addTo(array);
-  });
-  return array;
+  return trominos;
 }
-var cWidth=512,cHeight=512;
-var renderArray = function(array,missingPoint){
-  var trominos = getTrominosFromArray(array);
-  var xSize = array.length;
-  var ySize = array[0].length;
+
+
+function arrayToArray2d(k,array){
+
+  var size = Math.pow(2,k);
+  var array2d = new Array(size);
+  for(var i =  0; i < size; i++){
+    array2d[i] = new Array(size);
+  }
+  array.forEach(function(tromino){tromino.addTo(array2d);});
+  return array2d;
+}
+
+function changeMissingPoint(size,array2d,newMissingPoint){
+  var nextTromino = array2d[newMissingPoint.x][newMissingPoint.y];  
+  array2d[newMissingPoint.x][newMissingPoint.y]=null;
+  while(nextTromino){
+    var lowX=size,lowY=size;//trominos each take up 3 of 4 points in a 2x2 square
+	for(var i = 0; i < 3; i++){
+	  if(nextTromino.points[i].x<lowX){
+	    lowX=nextTromino.points[i].x;
+	  }
+	  if(nextTromino.points[i].y<lowY){
+	    lowY=nextTromino.points[i].y;
+	  }
+	}
+	var newPoints = [new Point(lowX,lowY),new Point(lowX+1,lowY),new Point(lowX,lowY+1),new Point(lowX+1,lowY+1)];
+	newPoints = newPoints.filter(function(point){return !(point.equals(newMissingPoint));});
+	nextTromino.points=newPoints;
+	nextTromino.lastChanged = Date.now();
+	newMissingPoint=newPoints.filter(function(point){return array2d[point.x][point.y]!=nextTromino})[0];
+	if(!newMissingPoint){
+	  nextTromino.addTo(array2d);
+	  return;
+	}
+	var tempNextTromino= array2d[newMissingPoint.x][newMissingPoint.y];
+	nextTromino.addTo(array2d);	
+	nextTromino = tempNextTromino;
+  }
+}
+
+
+
+var prevTile,a2d;
+
+var doFast=true;
+function doThing(newK,x,y){
+  x = Math.floor(x);
+  y = Math.floor(y);
+  if(x>=Math.pow(2,k)){
+    x=Math.pow(2,k)-1;
+  }
+  if(y>=Math.pow(2,k)){
+    y=Math.pow(2,k)-1;
+  }
+  if(x<0){
+    x=0;
+  }
+  if(y<0){
+    y=0;
+  }
+  var startTime = Date.now();
+  if(newK!=k||(!doFast)){
+    k=newK;
+	prevTile = tile(k,new Point(x,y));
+	a2d = arrayToArray2d(k,prevTile);
+  }else{
+    changeMissingPoint(Math.pow(2,k),a2d,new Point(x,y));
+  }
+  var endTime = Date.now();
+  console.log(endTime-startTime+"\n");
+  renderArray(prevTile,Math.pow(2,k),Math.pow(2,k),new Point(x,y));
+  
+}
+var cWidth,cHeight;
+var renderArray = function(trominos,xSize,ySize,missingPoint){
   var xScale = cWidth/xSize;
   var yScale = cWidth/ySize;
   var canvas = document.getElementById("canvas");
   var context = canvas.getContext("2d");
   context.strokeStyle="#000000"
   context.clearRect(0,0,cWidth,cHeight);
+  var now = Date.now();
   trominos.forEach(function(tromino){
     var centerPointIndex=0;
 	var points = tromino.points;
@@ -129,7 +184,7 @@ var renderArray = function(array,missingPoint){
 	//  |       |                             
 	//  |       |                            
 	//  |        ----  yconst2                          
-	//  |   x         |                        
+	//  |   cp        |                        
 	//  |             |                      
 	//   ------------- yconst1 
     //  xc1	   xc2   xc3
@@ -160,25 +215,19 @@ var renderArray = function(array,missingPoint){
 	context.strokeRect((missingPoint.x+.25)*xScale,(missingPoint.y+.25)*yScale,xScale/2,yScale/2);
   }
 }
-function doThing(k,x,y){
-  x = Math.floor(x);
-  y = Math.floor(y);
-  if(x>=Math.pow(2,k)){
-    x=Math.pow(2,k)-1;
-  }
-  if(y>=Math.pow(2,k)){
-    y=Math.pow(2,k)-1;
-  }
-  if(x<0){
-    x=0;
-  }
-  if(y<0){
-    y=0;
-  }
-  renderArray(tile(k,new Point(x,y)),new Point(x,y));
+function createCanvas(width,height){
+  cWidth=width;
+  cHeight=height;
+  document.getElementById("canvascontainer").innerHTML='<canvas id="canvas" width='+width+' height=' + height + "></canvas>";
+  init();
+}
+function createCanvasAuto(){
+  var size = Math.floor(Math.pow(2,document.getElementById("canvasSize").value));
+  createCanvas(size,size);
 }
 
- //code copied from https://developer.apple.com/library/safari/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
+//mouse/touch input to canvas
+ //following code copied from https://developer.apple.com/library/safari/documentation/AudioVideo/Conceptual/HTML-canvas-guide/AddingMouseandTouchControlstoCanvas/AddingMouseandTouchControlstoCanvas.html
         var can, canX, canY, mouseIsDown = 0;
 		var prevCanX,prevCanY,prevDo;
         function init() {
@@ -192,7 +241,7 @@ function doThing(k,x,y){
  
             document.body.addEventListener("mouseup", mouseUp, false);
             document.body.addEventListener("touchcancel", touchUp, false);
-			doThing(3,0,0);
+			showPos();
         }
  
         function mouseUp() {
@@ -240,11 +289,16 @@ function doThing(k,x,y){
 			prevCanX=canX;
 			prevCanY=canY;
         }
-    window.onload=init;
+    window.onload=function(){
+		createCanvasAuto();
+	
+	};
 </script>
 <body>
-<canvas id="canvas" width="512" height="512"></canvas>
-<br>k=<input type="text" id="in" value="3""></input>
+<input type="range" id="canvasSize" min="7" max="13" value="9" onchange="createCanvasAuto()"></input>
+<br>k=<input type="text" id="in" value="4""></input>
+<div id="canvascontainer">
+</div>
 </canvas>
 </body>
 </html>
