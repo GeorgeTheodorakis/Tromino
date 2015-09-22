@@ -2,6 +2,12 @@
 <head>
 <script>
 var k;
+var generation=1;
+var prevMissingPoint;
+var cWidth,cHeight;
+var prevTile,a2d;
+var doFast=true;
+var missingX,missingY;
 function Point(x,y){
 	this.x=x;
 	this.y=y;
@@ -15,7 +21,7 @@ Point.prototype.equals = function(other){
 }
 function Tromino(points){
   this.points=points;
-  this.lastChanged=0;
+  this.generation=0;
 }
 Tromino.prototype.addTo = function(array2d){
   var tromino=this;
@@ -90,7 +96,11 @@ function arrayToArray2d(k,array){
 function changeMissingPoint(size,array2d,newMissingPoint){
   var nextTromino = array2d[newMissingPoint.x][newMissingPoint.y];  
   array2d[newMissingPoint.x][newMissingPoint.y]=null;
+  if(nextTromino){//only increment if changing point
+    generation++;
+  }
   while(nextTromino){
+  
     var lowX=size,lowY=size;//trominos each take up 3 of 4 points in a 2x2 square
 	for(var i = 0; i < 3; i++){
 	  if(nextTromino.points[i].x<lowX){
@@ -103,7 +113,7 @@ function changeMissingPoint(size,array2d,newMissingPoint){
 	var newPoints = [new Point(lowX,lowY),new Point(lowX+1,lowY),new Point(lowX,lowY+1),new Point(lowX+1,lowY+1)];
 	newPoints = newPoints.filter(function(point){return !(point.equals(newMissingPoint));});
 	nextTromino.points=newPoints;
-	nextTromino.lastChanged = Date.now();
+	nextTromino.generation=generation;
 	newMissingPoint=newPoints.filter(function(point){return array2d[point.x][point.y]!=nextTromino})[0];
 	if(!newMissingPoint){
 	  nextTromino.addTo(array2d);
@@ -117,9 +127,6 @@ function changeMissingPoint(size,array2d,newMissingPoint){
 
 
 
-var prevTile,a2d;
-
-var doFast=true;
 function doThing(newK,x,y){
   x = Math.floor(x);
   y = Math.floor(y);
@@ -135,28 +142,38 @@ function doThing(newK,x,y){
   if(y<0){
     y=0;
   }
-  var startTime = Date.now();
-  if(newK!=k||(!doFast)){
+  var hasChanged=false;
+  if(missingX!=x||missingY!=y){
+    prevMissingPoint=new Point(missingX,missingY);
+    missingX=x;
+    missingY=y;
+	hasChanged=true;
+  }
+  if(newK!=k){
     k=newK;
-	prevTile = tile(k,new Point(x,y));
-	a2d = arrayToArray2d(k,prevTile);
+	hasChanged=true;
+  	prevTile = tile(k,new Point(x,y));
+  	a2d = arrayToArray2d(k,prevTile);
+	prevMissingPoint=null;
   }else{
     changeMissingPoint(Math.pow(2,k),a2d,new Point(x,y));
+	renderArray(prevTile,Math.pow(2,k),Math.pow(2,k),new Point(missingX,missingY));
   }
-  var endTime = Date.now();
-  console.log(endTime-startTime+"\n");
-  renderArray(prevTile,Math.pow(2,k),Math.pow(2,k),new Point(x,y));
   
 }
-var cWidth,cHeight;
 var renderArray = function(trominos,xSize,ySize,missingPoint){
   var xScale = cWidth/xSize;
   var yScale = cWidth/ySize;
   var canvas = document.getElementById("canvas");
   var context = canvas.getContext("2d");
+  var colors = document.getElementById("colors").checked;
   context.strokeStyle="#000000"
   context.clearRect(0,0,cWidth,cHeight);
-  var now = Date.now();
+  
+  if(missingPoint){
+    context.fillStyle="#00ff00";
+	context.fillRect((missingPoint.x)*xScale,(missingPoint.y)*yScale,xScale,yScale);
+  }
   trominos.forEach(function(tromino){
     var centerPointIndex=0;
 	var points = tromino.points;
@@ -200,19 +217,31 @@ var renderArray = function(trominos,xSize,ySize,missingPoint){
 	  yconst2*=-1;
 	  yconst3*=-1;
 	}
+	xconst1=(cPoint.x+xconst1+.5)*xScale;
+	xconst2=(cPoint.x+xconst2+.5)*xScale;
+	xconst3=(cPoint.x+xconst3+.5)*xScale;
+	yconst1=(cPoint.y+yconst1+.5)*yScale;
+	yconst2=(cPoint.y+yconst2+.5)*yScale;
+	yconst3=(cPoint.y+yconst3+.5)*yScale;
+	if(colors && tromino.generation==generation){
+	  var scale = 0;
+	  context.fillStyle="rgb("+scale+","+scale+",255)";
+	  context.fillRect(xconst1,yconst1,xconst3-xconst1,yconst2-yconst1);
+	  context.fillRect(xconst1,yconst2,xconst2-xconst1,yconst3-yconst2);
+	}
     context.beginPath();
-	context.moveTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
-	context.lineTo((cPoint.x+xconst3+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
-	context.lineTo((cPoint.x+xconst3+.5)*xScale,(cPoint.y+yconst2+.5)*yScale);
-	context.lineTo((cPoint.x+xconst2+.5)*xScale,(cPoint.y+yconst2+.5)*yScale);
-	context.lineTo((cPoint.x+xconst2+.5)*xScale,(cPoint.y+yconst3+.5)*yScale);
-	context.lineTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst3+.5)*yScale);
-	context.lineTo((cPoint.x+xconst1+.5)*xScale,(cPoint.y+yconst1+.5)*yScale);
+	context.moveTo(xconst1,yconst1);
+	context.lineTo(xconst3,yconst1);
+	context.lineTo(xconst3,yconst2);
+	context.lineTo(xconst2,yconst2);
+	context.lineTo(xconst2,yconst3);
+	context.lineTo(xconst1,yconst3);
+	context.lineTo(xconst1,yconst1);
 	context.stroke();
   });
-  if(missingPoint){
-    context.beginPath();
-	context.strokeRect((missingPoint.x+.25)*xScale,(missingPoint.y+.25)*yScale,xScale/2,yScale/2);
+  if(colors &&prevMissingPoint){
+    context.fillStyle="#ff0000";
+	context.fillRect((prevMissingPoint.x+.25)*xScale,(prevMissingPoint.y+.25)*yScale,xScale/2,yScale/2);
   }
 }
 function createCanvas(width,height){
@@ -270,7 +299,9 @@ function createCanvasAuto(){
                 e = event;
             canX = e.pageX - can.offsetLeft;
             canY = e.pageY - can.offsetTop;
+			if(mouseIsDown){
             showPos();
+			}
         }
  
         function touchXY(e) {
@@ -279,7 +310,9 @@ function createCanvasAuto(){
             e.preventDefault();
             canX = e.targetTouches[0].pageX - can.offsetLeft;
             canY = e.targetTouches[0].pageY - can.offsetTop;
-            showPos();
+			if(mouseIsDown){
+              showPos();
+			}
         }
  //whatever
         function showPos() {
@@ -291,12 +324,17 @@ function createCanvasAuto(){
         }
     window.onload=function(){
 		createCanvasAuto();
-	
+	    window.setInterval(function(){},20);
+		var k=+(document.getElementById("in").value);
+        doThing(k,(Math.pow(2,k)),Math.pow(2,k));
 	};
+	
 </script>
 <body>
+You now have to click to change the location<br>
 <input type="range" id="canvasSize" min="7" max="13" value="9" onchange="createCanvasAuto()"></input>
-<br>k=<input type="text" id="in" value="4""></input>
+<br>k=<input type="text" id="in" value="5""></input>
+<br>Show colors<input type="checkbox" id="colors"></input>
 <div id="canvascontainer">
 </div>
 </canvas>
